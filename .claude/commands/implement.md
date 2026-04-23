@@ -1,0 +1,32 @@
+Implement a feature from a PRD.
+
+Arguments: $ARGUMENTS (PRD path, e.g. docs/product/feat-auth.md)
+
+Workflow:
+1. Read the PRD at $ARGUMENTS
+2. Enter Plan Mode — create a detailed plan before coding
+3. Check related ADRs in docs/architecture/
+4. Check applicable specs in docs/specs/
+5. **Detect design flow** (in priority order):
+   - If `docs/design/<prd-slug>-PROMPT.md` exists OR PRD references a Claude Design handoff →
+     activate `claude-design-handoff` skill: parse PROMPT.md, reconcile against CLAUDE.md + PRD,
+     produce reconciliation report, resolve conflicts with user, then hand off to `frontend-agent`
+   - Else if the PRD contains a Figma link → use Figma MCP to extract design context, then implement
+   - Else → activate the `frontend-agent` skill:
+     a. Load design tokens from docs/specs/design-system/README.md
+     b. Scan existing UI components for consistency
+     c. Generate UI from PRD requirements + tokens + component library
+6. Implement following CLAUDE.md and the implement-prd skill
+7. Create tests following the testing skill
+8. **Documentation checklist** — before committing, verify and update:
+   - [ ] CLAUDE.md module map (if new files/modules)
+   - [ ] .env.example (if new environment variables)
+   - [ ] README.md project structure (if new files/modules)
+   - [ ] ADR in docs/architecture/ (if architectural decisions were made)
+   - [ ] Gotchas in CLAUDE.md (if new edge cases discovered)
+   - [ ] Notes in the PRD (if implementation revealed business insights)
+   - [ ] Runbook in docs/runbooks/ (if new operational procedures needed)
+   Skip items that don't apply, but actively check each one.
+9. Commit with Conventional Commits format message
+
+Always ask for plan confirmation before starting implementation.

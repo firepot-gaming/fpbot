@@ -1,0 +1,13 @@
+# Core
+sentence-transformers>=3.0.0
+pyyaml>=6.0
+rich>=13.0.0
+gitpython>=3.1.0
+
+# Backend: Chroma (default — local, per-developer)
+chromadb>=1.0.0
+
+# Backend: pgvector (uncomment for shared team memory)
+# Requires PostgreSQL 15+ with: CREATE EXTENSION vector;
+# psycopg2-binary>=2.9.0
+# pgvector>=0.3.0

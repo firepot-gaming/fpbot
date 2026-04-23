@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # fpbot
 
 ## Projeto
@@ -14,44 +18,51 @@ Ver `docs/product/prd-wiki-bot.md` para o PRD completo.
 - Package manager: pip + venv
 
 ## Arquitetura
-- `/src/bot/` → Slack Bolt app (handlers, responder)
-- `/src/wiki/` → WikiJS GraphQL client + sync job
-- `/src/db/` → Supabase client, queries, schema SQL
-- `/scripts/` → jobs de manutenção (sync, bootstrap DB)
-- `/docs/` → PRDs, ADRs, specs, runbooks
 
 ### Fluxo principal
 ```
 Slack @fpbot <pergunta>
-    → src/bot/handlers.py       # recebe evento
-    → src/db/search.py          # busca FTS no Supabase
-    → src/bot/responder.py      # monta prompt + chama Claude
+    → src/bot/handlers.py       # recebe evento, faz ACK imediato
+    → src/db/pages.py           # busca FTS no Supabase (RPC search_wiki_pages)
+    → src/bot/responder.py      # monta contexto + chama Claude
     → resposta na thread com link para página da wiki
 ```
 
 ### Sync job (rodar periodicamente ou on-demand)
 ```
 scripts/sync_wiki.py
-    → src/wiki/client.py        # puxa páginas via GraphQL
-    → src/wiki/sync.py          # diff + upsert
-    → src/db/pages.py           # salva no Supabase
+    → src/wiki/client.py        # puxa páginas via GraphQL (lista + conteúdo individual)
+    → src/wiki/sync.py          # upsert em batches de 100
+    → src/db/pages.py           # on_conflict="id"
 ```
 
-## Convenções
-- Style: black + ruff (linha máx 100)
-- Tipos: type hints obrigatórios em funções públicas
-- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`)
-- Branches: `feature/`, `fix/`, `docs/`
-- Env vars: sempre via `os.environ`, nunca hardcoded; toda var nova vai em `.env.example`
+### Detalhes não-óbvios da implementação
+
+**Timeout do Slack (3s):** `handlers.py` responde com ACK imediato ("🔍 Buscando na wiki...") e só depois faz a busca + Claude. Nunca mover a lógica pesada para antes do ACK.
+
+**FTS em português:** O schema usa `to_tsvector('portuguese', ...)` e `websearch_to_tsquery('portuguese', ...)`. Queries em outros idiomas podem retornar menos resultados.
+
+**Truncamento de conteúdo:** O schema SQL limita o conteúdo indexado a 3000 chars (`left(content, 3000)`). Páginas grandes da wiki são truncadas antes de chegar ao Claude.
+
+**Clientes singleton:** `src/db/client.py` e o cliente Anthropic em `src/bot/responder.py` são lazy-initialized na primeira chamada — não instanciar fora das funções.
+
+**`setup_db.py` não executa SQL:** Imprime as instruções na tela. O schema precisa ser colado manualmente no Supabase SQL Editor ou executado via `psql`.
 
 ## Comandos
-- `python -m src.bot.app` → bot em modo socket (dev)
-- `python scripts/sync_wiki.py` → sincroniza wiki → Supabase
-- `python scripts/sync_wiki.py --dry-run` → lista páginas sem sincronizar
-- `python scripts/setup_db.py` → cria tabelas e extensão pgvector no Supabase
-- `ruff check src/` → lint
-- `black src/` → format
-- `pytest` → testes
+
+```bash
+# Dev
+python -m src.bot.app                  # bot em Socket Mode
+python scripts/sync_wiki.py            # sincroniza wiki → Supabase
+python scripts/sync_wiki.py --dry-run  # lista páginas sem sincronizar
+python scripts/setup_db.py             # imprime SQL para executar no Supabase
+
+# Qualidade
+ruff check src/                        # lint
+black src/                             # format
+pytest                                 # todos os testes
+pytest tests/test_handlers.py -k test_clean_question_removes_mention  # teste único
+```
 
 ### Slash commands
 - `/implement <PRD>` → implementar feature a partir do PRD
@@ -62,6 +73,13 @@ scripts/sync_wiki.py
 - `/debt [dir]` → scan de tech debt
 - `/deploy` → checklist de deploy
 - `/spec-review <path>` → auditoria (security + quality + performance)
+
+## Convenções
+- Style: black + ruff (linha máx 100)
+- Tipos: type hints obrigatórios em funções públicas
+- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`)
+- Branches: `feature/`, `fix/`, `docs/`
+- Env vars: sempre via `os.environ`, nunca hardcoded; toda var nova vai em `.env.example`
 
 ## Workflow
 - Nunca commitar `.env` ou qualquer secret
@@ -90,7 +108,7 @@ WIKIJS_API_TOKEN        # token gerado no WikiJS admin → API Access
 ## Gotchas
 - WikiJS GraphQL: header `Authorization: Bearer <token>` obrigatório
 - Slack Socket Mode: precisa de `SLACK_APP_TOKEN` (xapp-) além do bot token (xoxb-)
-- Claude API: definir `max_tokens` explícito — respostas sem limite podem exceder timeout do Slack (3s)
-- pgvector: extensão `vector` precisa estar habilitada no Supabase antes do `setup_db.py`
+- Claude API: `max_tokens=600` hardcoded em `responder.py` — ajustar se respostas forem cortadas
+- pgvector: extensão `vector` precisa estar habilitada no Supabase antes de rodar o schema
 - Supabase `service_role` key tem bypass de RLS — nunca expor fora do backend
 - Slack: bot precisa de escopos `app_mentions:read`, `chat:write`, `channels:history`

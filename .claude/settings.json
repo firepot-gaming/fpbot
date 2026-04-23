@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Read:*",
+      "Write:*:*.md",
+      "Edit",
+      "MultiEdit",
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm:*)",
+      "WebFetch",
+      "TodoWrite"
+    ],
+    "deny": [
+      "Read:env:*",
+      "Bash:sudo:*",
+      "Bash:rm:-rf:*",
+      "Write:*:.env*"
+    ]
+  }
+}

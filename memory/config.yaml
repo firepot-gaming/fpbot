@@ -1,0 +1,93 @@
+# ===========================================================================
+# Vector DB backend
+# ===========================================================================
+# Option A: Chroma (default) — local, zero infra, per-developer
+backend: chroma
+persist_dir: memory/.chroma
+
+# Option B: pgvector (shared) — team-wide memory, single source of truth
+# Uncomment below and comment out the chroma lines above.
+# Requires: PostgreSQL 15+ with pgvector extension enabled.
+# All devs point to the same DB — everyone shares the same memory.
+#
+# backend: pgvector
+# pgvector:
+#   host: localhost              # [SPEC] your PostgreSQL host
+#   port: 5432
+#   database: project_memory     # [SPEC] database name
+#   user: memory_user            # [SPEC] db user
+#   password_env: PGVECTOR_PASSWORD  # reads from env var (never hardcode)
+#   table_name: embeddings
+#   embedding_dimensions: 384    # must match embedding model output
+
+# ===========================================================================
+# Embedding model
+# ===========================================================================
+# Local (free, no API key needed):
+embedding_model: all-MiniLM-L6-v2
+embedding_dimensions: 384
+# Cloud alternatives (uncomment one, set API key in .env):
+# embedding_model: text-embedding-3-small
+# embedding_provider: openai
+# embedding_dimensions: 1536
+# embedding_model: voyage-code-3
+# embedding_provider: voyage
+# embedding_dimensions: 1024
+
+# ===========================================================================
+# Sources to index
+# ===========================================================================
+sources:
+  - path: docs/
+    glob: "**/*.md"
+    chunk_by: heading       # heading = split on ## headers
+    metadata_type: docs
+
+  - path: src/
+    glob: "**/*.py"
+    chunk_by: file          # file = one chunk per file
+    metadata_type: code
+
+  - path: src/
+    glob: "**/*.ts"
+    chunk_by: file
+    metadata_type: code
+
+  - path: src/
+    glob: "**/*.tsx"
+    chunk_by: file
+    metadata_type: code
+
+# Git history (optional)
+index_git_log: true
+git_log_limit: 200          # last N commits
+
+# Search defaults
+default_top_k: 5
+min_similarity: 0.3
+
+# Collection name in vector DB
+collection_name: project_memory
+
+# ===========================================================================
+# Cross-project memory (global)
+# ===========================================================================
+# A shared memory layer across ALL projects. Stores decisions, patterns, and
+# insights that transcend individual projects (e.g., "how did we solve auth
+# in project A" is useful in project B).
+#
+# Global memory lives in a fixed location (~/.claude/memory/) instead of
+# per-project memory/.chroma/. Both can coexist — search with --global flag.
+global_memory:
+  enabled: false                       # [SPEC] set to true to enable
+  persist_dir: ~/.claude/memory/global  # shared across all projects
+  collection_name: global_memory
+  # What gets indexed into global memory (vs project memory):
+  # - ADRs (architectural decisions transfer across projects)
+  # - Post-mortems (lessons learned are universal)
+  # - Learner reports (extracted patterns)
+  # Project-specific code and PRDs stay in project memory only.
+  sources:
+    - type: adr
+    - type: post_mortem
+    - type: learner_report
